@@ -1,7 +1,10 @@
 use std::io;
 use std::time::{Duration, Instant};
 
-use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind,
+};
+use crossterm::execute;
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Alignment, Rect},
@@ -11,7 +14,12 @@ use ratatui::{
 };
 
 pub fn tap_tempo_blocking(amount: u8, numerator: u8, denominator: u8) -> io::Result<Option<u16>> {
-    ratatui::run(|terminal| run_tap_tempo(terminal, amount, numerator, denominator))
+    ratatui::run(|terminal| {
+        execute!(io::stdout(), event::EnableMouseCapture)?;
+        let result = run_tap_tempo(terminal, amount, numerator, denominator);
+        execute!(io::stdout(), event::DisableMouseCapture)?;
+        result
+    })
 }
 
 fn run_tap_tempo(
@@ -38,20 +46,26 @@ fn run_tap_tempo(
         })?;
 
         if event::poll(Duration::from_millis(16))? {
-            let Event::Key(key) = event::read()? else {
-                continue;
-            };
-            if key.kind == KeyEventKind::Release {
-                continue;
-            }
-
-            match key.code {
-                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    return Ok(None);
-                }
-                KeyCode::Char('q') | KeyCode::Esc => return Ok(None),
-                KeyCode::Enter if taps.len() >= 2 => return Ok(estimate_bpm(&taps)),
-                KeyCode::Char(' ') => {
+            match event::read()? {
+                Event::Key(key) if key.kind != KeyEventKind::Release => match key.code {
+                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        return Ok(None);
+                    }
+                    KeyCode::Char('q') | KeyCode::Esc => return Ok(None),
+                    KeyCode::Enter if taps.len() >= 2 => return Ok(estimate_bpm(&taps)),
+                    KeyCode::Char(' ') => {
+                        let now = Instant::now();
+                        taps.push(now);
+                        flash_until = Some(now + Duration::from_millis(150));
+                        if taps.len() >= usize::from(amount) {
+                            return Ok(estimate_bpm(&taps));
+                        }
+                    }
+                    _ => {}
+                },
+                Event::Mouse(mouse)
+                    if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) =>
+                {
                     let now = Instant::now();
                     taps.push(now);
                     flash_until = Some(now + Duration::from_millis(150));
@@ -99,7 +113,7 @@ fn render_tap_ui(
     };
     let lines = vec![
         Line::from(vec![
-            Span::styled("<Space>", Style::new().add_modifier(Modifier::BOLD)),
+            Span::styled("<Space>/<Click>", Style::new().add_modifier(Modifier::BOLD)),
             Span::raw(" tap   "),
             Span::styled("<Enter>", Style::new().add_modifier(Modifier::BOLD)),
             Span::raw(" accept   "),

@@ -129,7 +129,7 @@ fn render_track(frame: &mut Frame, area: Rect, state: UiState) {
 
 fn render_footer(frame: &mut Frame, area: Rect) {
     let left = control_line(&[
-        ("<Space>", ": Play/Pause   "),
+        ("<Space>/<Click>", ": Play/Pause   "),
         ("<q>/<Esc>", ": Quit   "),
         ("<s>", ": Subdivision   "),
         ("<Tab>", ": Signature   "),
@@ -161,7 +161,10 @@ fn render_help(frame: &mut Frame, area: Rect) {
         height,
     );
     let help = vec![
-        control_line(&[("<Space>", " Play/Pause   "), ("<q>/<Esc>", " Quit")]),
+        control_line(&[
+            ("<Space>/<Click>", " Play/Pause   "),
+            ("<q>/<Esc>", " Quit"),
+        ]),
         control_line(&[("<s>", " Subdivision   "), ("<Tab>", " Signature")]),
         control_line(&[("<Up>/<Down>", " +/-1   "), ("<Left>/<Right>", " +/-5")]),
         control_line(&[("<h>", " Close help")]),

@@ -3,7 +3,10 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind,
+};
+use crossterm::execute;
 use ratatui::DefaultTerminal;
 
 use crate::audio::spawn_audio_thread;
@@ -34,7 +37,12 @@ pub fn run(mut cli: Cli) -> io::Result<()> {
         cli.bpm, numerator, denominator, ticks_per_beat, cli.mute
     );
 
-    ratatui::run(|terminal| run_loop(terminal, cli, numerator, denominator, ticks_per_beat))
+    ratatui::run(|terminal| {
+        execute!(io::stdout(), event::EnableMouseCapture)?;
+        let result = run_loop(terminal, cli, numerator, denominator, ticks_per_beat);
+        execute!(io::stdout(), event::DisableMouseCapture)?;
+        result
+    })
 }
 
 fn run_loop(
@@ -63,10 +71,8 @@ fn run_loop(
 
     loop {
         while event::poll(Duration::ZERO)? {
-            if let Event::Key(key) = event::read()?
-                && key.kind != KeyEventKind::Release
-            {
-                match key.code {
+            match event::read()? {
+                Event::Key(key) if key.kind != KeyEventKind::Release => match key.code {
                     KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         return Ok(());
                     }
@@ -118,7 +124,13 @@ fn run_loop(
                         show_help = !show_help;
                     }
                     _ => {}
+                },
+                Event::Mouse(mouse)
+                    if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) =>
+                {
+                    playing = !playing;
                 }
+                _ => {}
             }
         }
 
